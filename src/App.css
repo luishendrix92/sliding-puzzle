@@ -23,14 +23,16 @@
 
 .piece {
   box-sizing: border-box;
-  background: rgb(36, 36, 36, 0.9);
+  background: rgb(36, 36, 36, 1);
   font-size: 2em;
   padding-left: 0.2em;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.7);
-  transition: all;
-  cursor: pointer;
 }
 
 .piece:nth-child(n+2) {
   margin-left: 3px;
+}
+
+.pointer {
+  cursor: pointer;
 }

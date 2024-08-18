@@ -1,7 +1,7 @@
-import {useState} from "react";
+import {useEffect, useState} from "react";
+import camel from "./assets/camel.jpg";
 
 import './App.css'
-import camel from './assets/camel.jpg'
 
 const PIECE_WIDTH = 200;
 const PIECE_HEIGHT = PIECE_WIDTH;
@@ -10,24 +10,57 @@ const COLS = 3;
 const LAST_PIECE = ROWS * COLS - 1;
 
 /**
+ * Whether or not a flattened puzzle matrix is sorted in ascending order.
+ * Once a sliding puzzle has all its pieces in order, it's considered complete.
+ * @param ids {Array<number>} Flat array set of piece IDs
+ * @return {boolean}
+ */
+function arePiecesInOrder(ids) {
+  for (let i = 1; i < ids.length; i++) {
+    if (ids[i] !== ids[i - 1] + 1) return false;
+  }
+
+  return true;
+}
+
+/**
  * Returns a style object for a piece div that assigns the background image
- * and its corresponding background offsets (positioning).
+ * and its corresponding vertical/horizontal offsets (positioning).
+ * @param {{}} img URL of the background image
  * @param {number} id The piece's original ID (0-based)
  */
-function pieceBgStyles(id) {
-  const row = Math.floor(id / 3);
-  const col = id % 3;
+function pieceBgStyles(img, id) {
+  const row = Math.floor(id / COLS);
+  const col = id % COLS;
 
   return {
-    backgroundImage: `url(${camel})`,
+    backgroundImage: `url(${img})`,
     backgroundSize: `${COLS * PIECE_WIDTH}px ${ROWS * PIECE_HEIGHT}px`,
     backgroundPosition: `-${col * PIECE_WIDTH}px -${row * PIECE_HEIGHT}px`,
   };
 }
 
 /**
- * Returns the 2D array that represents pieces in a sliding puzzle.
- * The ordering of the numbers from 0 to `rows * cols - 1` is random.
+ * Determines whether a particular permutation of a sliding puzzle (in the
+ * form of a flat array) is solvable (the number of indirections is even).
+ * @param pieceSet {Array<number>} Flat array set of piece IDs
+ * @returns {boolean}
+ */
+function isPuzzleSolvable(pieceSet) {
+  let inversions = 0;
+
+  for (let i = 0; i < pieceSet.length; i++) {
+    for (let j = i + 1; j < pieceSet.length; j++) {
+      if (pieceSet[i] > pieceSet[j]) inversions++;
+    }
+  }
+
+  return inversions % 2 === 0;
+}
+
+/**
+ * Returns the 2D array that represents the pieces in a sliding puzzle. The
+ * puzzle is re-generated until random order and solvability is ensured.
  * @param rows {number} Number of rows in the puzzle
  * @param cols {number} Number of columns
  * @returns {number[][]}
@@ -36,48 +69,59 @@ function createMatrix(rows, cols) {
   const ids = Array(rows * cols - 1).fill(0)
     .map((_v, i) => i);
 
-  // NOTE: I chose the Fisher-Yates algorithm to shuffle the piece IDs
-  for (let i = rows * cols - 2; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+  do {
+    // NOTE: I chose the Fisher-Yates algorithm to shuffle the piece IDs
+    for (let i = rows * cols - 2; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
 
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-  }
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
+  } while (!isPuzzleSolvable(ids) || arePiecesInOrder(ids));
 
   ids.push(rows * cols - 1);
 
   return Array(rows).fill(0)
-    .map((_v, i) =>
-      ids.slice(i * cols, i * cols + cols)
-    );
+    .map((_v, i) => ids.slice(i * cols, i * cols + cols));
 }
 
-function Piece({ row, col, id, slidePiece }) {
-  const isLastPiece = id === LAST_PIECE;
+function Piece({ row, col, id, slidePiece, isPuzzleComplete }) {
+  const isSlideable = id !== LAST_PIECE && !isPuzzleComplete;
   const pieceStyle = {
     width: `${PIECE_WIDTH}px`,
     height: `${PIECE_HEIGHT}px`,
-    ...(isLastPiece
-      ? { cursor: "default" }
-      : pieceBgStyles(id))
+    opacity: id === LAST_PIECE && !isPuzzleComplete ? "0" : "1",
+    ...pieceBgStyles(camel, id)
   };
 
   const slidePieceHandler = () => {
-    if (!isLastPiece) slidePiece(row, col, id);
+    if (isSlideable) slidePiece(row, col, id);
   };
 
   return (
     <div
       onClick={slidePieceHandler}
-      className="piece"
+      className={`piece ${isSlideable ? "pointer" : ""}`}
       style={pieceStyle}
     >
-      {!isLastPiece && id + 1}
+      {id + 1}
     </div>
   );
 }
 
-function Puzzle() {
+function App() {
   const [pieces, setPieces] = useState(createMatrix(ROWS, COLS));
+  const [isComplete, setIsComplete] = useState(false);
+
+  useEffect(() => {
+    if (arePiecesInOrder(pieces.flat())) {
+      setIsComplete(true);
+    }
+  }, [pieces]);
+
+  const reshuffle = () => {
+    setPieces(createMatrix(ROWS, COLS));
+    setIsComplete(false);
+  };
 
   /**
    * Attempts to make a piece slide. Once the pieces are ordered (ascending),
@@ -89,51 +133,48 @@ function Puzzle() {
     const dirs = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // Up, Right, Down, Left
 
     for (const [rowDelta, colDelta] of dirs) {
-      const adjacentPieceId = pieces[row + rowDelta]?.[col + colDelta] ?? -1;
+      const adjacentPieceId = pieces[row + rowDelta]?.[col + colDelta];
 
       if (adjacentPieceId === LAST_PIECE) {
         const clickedPieceId = pieces[row][col];
 
-        setPieces((pieces) =>
-          pieces.map((row, rowIndex) =>
-            row.map((pieceId, colIndex) => {
-              if (pieceId === clickedPieceId) return LAST_PIECE;
-              else if (pieceId === LAST_PIECE) return clickedPieceId;
+        setPieces((pieces) => pieces.map((row) =>
+          row.map((pieceId) => {
+            if (pieceId === clickedPieceId) return LAST_PIECE;
+            else if (pieceId === LAST_PIECE) return clickedPieceId;
 
-              return pieceId;
-            })
-          ));
+            return pieceId;
+          })
+        ));
+
         break;
       }
     }
   }
 
   return (
-    <div className="puzzle">
-      {pieces.map((row, rowIndex) =>
-        <div className="puzzle-row" key={rowIndex}>
-          {row.map((pieceId, colIndex) =>
-            <Piece
-              slidePiece={slidePiece}
-              key={colIndex}
-              row={rowIndex}
-              col={colIndex}
-              id={pieceId}
-            />
-          )}
-        </div>
-      )}
+    <div className="container">
+      <div className="puzzle">
+        {pieces.map((row, rowIndex) =>
+          <div className="puzzle-row" key={rowIndex}>
+            {row.map((pieceId, colIndex) =>
+              <Piece
+                isPuzzleComplete={isComplete}
+                slidePiece={slidePiece}
+                key={colIndex}
+                row={rowIndex}
+                col={colIndex}
+                id={pieceId}
+              />
+            )}
+          </div>
+        )}
+      </div>
+      <button onClick={() => reshuffle()}>
+        Reshuffle
+      </button>
     </div>
   );
-}
-
-function App() {
-  return (
-    <div className="container">
-      <Puzzle/>
-      <button>Huh?</button>
-    </div>
-  )
 }
 
 export default App
