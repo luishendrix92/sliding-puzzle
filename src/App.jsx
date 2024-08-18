@@ -153,7 +153,7 @@ function App() {
   }
 
   return (
-    <div className="container">
+    <>
       <div className="puzzle">
         {pieces.map((row, rowIndex) =>
           <div className="puzzle-row" key={rowIndex}>
@@ -173,7 +173,7 @@ function App() {
       <button onClick={() => reshuffle()}>
         Reshuffle
       </button>
-    </div>
+    </>
   );
 }
 
