@@ -1,5 +1,4 @@
 import {useEffect, useState} from "react";
-import camel from "./assets/camel.jpg";
 
 import './App.css'
 
@@ -8,6 +7,7 @@ const PIECE_HEIGHT = PIECE_WIDTH;
 const ROWS = 3;
 const COLS = 3;
 const LAST_PIECE = ROWS * COLS - 1;
+const IMAGE_URL = `https://picsum.photos/${PIECE_WIDTH * COLS}/${PIECE_HEIGHT * ROWS}`;
 
 /**
  * Whether or not a flattened puzzle matrix is sorted in ascending order.
@@ -89,8 +89,8 @@ function Piece({ row, col, id, slidePiece, isPuzzleComplete }) {
   const pieceStyle = {
     width: `${PIECE_WIDTH}px`,
     height: `${PIECE_HEIGHT}px`,
-    opacity: id === LAST_PIECE && !isPuzzleComplete ? "0" : "1",
-    ...pieceBgStyles(camel, id)
+    ...(id === LAST_PIECE && !isPuzzleComplete
+      ? {} : pieceBgStyles(IMAGE_URL, id))
   };
 
   const slidePieceHandler = () => {
@@ -103,7 +103,7 @@ function Piece({ row, col, id, slidePiece, isPuzzleComplete }) {
       className={`piece ${isSlideable ? "pointer" : ""}`}
       style={pieceStyle}
     >
-      {id + 1}
+      {id === LAST_PIECE || !isPuzzleComplete && id + 1}
     </div>
   );
 }
@@ -111,6 +111,10 @@ function Piece({ row, col, id, slidePiece, isPuzzleComplete }) {
 function App() {
   const [pieces, setPieces] = useState(createMatrix(ROWS, COLS));
   const [isComplete, setIsComplete] = useState(false);
+  const gridStyles = {
+    gridTemplateRows: `repeat(${ROWS}, 1fr)`,
+    gridTemplateColumns: `repeat(${COLS}, 1fr)`
+  };
 
   useEffect(() => {
     if (arePiecesInOrder(pieces.flat())) {
@@ -154,20 +158,18 @@ function App() {
 
   return (
     <>
-      <div className="puzzle">
-        {pieces.map((row, rowIndex) =>
-          <div className="puzzle-row" key={rowIndex}>
-            {row.map((pieceId, colIndex) =>
-              <Piece
-                isPuzzleComplete={isComplete}
-                slidePiece={slidePiece}
-                key={colIndex}
-                row={rowIndex}
-                col={colIndex}
-                id={pieceId}
-              />
-            )}
-          </div>
+      <div className="puzzle grid" style={gridStyles}>
+        {pieces.flatMap((row, rowIndex) =>
+          row.map((pieceId, colIndex) =>
+            <Piece
+              isPuzzleComplete={isComplete}
+              slidePiece={slidePiece}
+              key={pieceId}
+              row={rowIndex}
+              col={colIndex}
+              id={pieceId}
+            />
+          )
         )}
       </div>
       <button onClick={() => reshuffle()}>
